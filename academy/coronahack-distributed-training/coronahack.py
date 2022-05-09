@@ -34,7 +34,7 @@ import torch.optim as optim
 import torchvision.models as models
 import torchvision.transforms as transforms
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, NamedTuple
 from PIL import Image
 from pathlib import Path
 from kubernetes.client.rest import ApiException
@@ -42,6 +42,7 @@ from torch.utils.data import Dataset, DataLoader
 
 from kale.sdk import step, pipeline
 from kale.distributed import pytorch
+from kale.types import MarshalData
 
 
 logging.basicConfig(level=logging.INFO)
@@ -235,7 +236,8 @@ def create_data_loaders(train_df: 'pd.DataFrame',
 
 
 @step(name="load_dataset")
-def load_data() -> Tuple:
+def load_data() -> NamedTuple("outputs", [("train_df", MarshalData),
+                                          ("test_df", MarshalData)]):
     """Load the dataset.
 
     This function defines the first step in the pipeline. It loads the dataset
@@ -255,7 +257,9 @@ def load_data() -> Tuple:
 
 
 @step(name="define_model")
-def create_model() -> Tuple:
+def create_model() -> NamedTuple("outputs", [("model", MarshalData),
+                                             ("optimizer", MarshalData),
+                                             ("criterion", MarshalData)]):
     """Define the model.
 
     This is the second step in the pipeline. It defines the model and returns
@@ -284,11 +288,11 @@ def create_model() -> Tuple:
 
 
 @step(name="submit_training_job")
-def distribute_training(model: 'torch.nn.Module',
-                        criterion: 'torch.nn.modules.loss._Loss',
-                        optimizer: 'torch.optim.Optimizer',
-                        train_df: 'pd.DataFrame',
-                        valid_df: 'pd.DataFrame') -> str:
+def distribute_training(model: MarshalData,
+                        criterion: MarshalData,
+                        optimizer: MarshalData,
+                        train_df: MarshalData,
+                        valid_df: MarshalData) -> str:
     """Train the model.
 
     This is the third step in the pipeline. It submits a ``PyTorchJob`` CR and
@@ -320,7 +324,7 @@ def distribute_training(model: 'torch.nn.Module',
                              eval_data_loader=valid_loader,
                              eval_step=eval_step,
                              cuda=False,
-                             epochs=10,
+                             epochs=4,
                              number_of_processes=3,
                              train_args=train_args,
                              eval_args=eval_args)
