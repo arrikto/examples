@@ -31,7 +31,6 @@ import pandas as pd
 import torchmetrics
 import torch.nn as nn
 import torch.optim as optim
-import torchvision.models as models
 import torchvision.transforms as transforms
 
 from typing import Optional, Tuple, NamedTuple
@@ -43,6 +42,8 @@ from torch.utils.data import Dataset, DataLoader
 from kale.sdk import step, pipeline
 from kale.distributed import pytorch
 from kale.types import MarshalData
+
+from network import Net
 
 
 logging.basicConfig(level=logging.INFO)
@@ -271,15 +272,7 @@ def create_model() -> NamedTuple("outputs", [("model", MarshalData),
     Returns:
         model (torch.nn.Module): The model to train.
     """
-    model = models.resnet18(pretrained=True)
-    model.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7),
-                            stride=(2, 2), padding=(3, 3), bias=False)
-
-    for param in model.parameters():
-        param.requires_grad = False
-
-    features_in = model.fc.in_features
-    model.fc = nn.Linear(features_in, 2)
+    model = Net()
 
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     criterion = nn.CrossEntropyLoss()
