@@ -1,0 +1,140 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ddpm-training-logs
+  namespace: kubeflow-user
+spec:
+  accessModes:
+  - ReadWriteMany
+  storageClassName: rok
+  resources:
+    requests:
+      storage: 500Mi
+---
+apiVersion: "kubeflow.org/v1"
+kind: PyTorchJob
+metadata:
+  name: ddpm-dist
+  namespace: kubeflow-user
+spec:
+  pytorchReplicaSpecs:
+    Master:
+      replicas: 1
+      restartPolicy: OnFailure
+      template:
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: "false"
+        spec:
+          serviceAccount: default-editor
+          containers:
+            - name: pytorch
+              image: dpoulopoulos/ddpm:latest
+              imagePullPolicy: Always
+              volumeMounts:
+                - mountPath: /dev/shm
+                  name: dshm
+                - mountPath: /logs
+                  name: training-logs
+              command: ["python", "/opt/src/ddpm.py"]
+              args:
+                - "--lr"
+                - "0.0001"
+                # - "--max_lr"
+                # - "0.1"
+                - "--devices"
+                - "2"
+                - "--max_steps"
+                - "3000"
+                - "--num_nodes"
+                - "2"
+                - "--block_out_channels"
+                - "32 64 128 128"
+                - "--batch_size"
+                - "128"
+                - "--num_workers"
+                - "4"
+                - "--strategy"
+                - "ddp"
+                - "--logdir"
+                - "/logs"
+                - "--version"
+                - "version_0"
+                - "--pin_memory"
+                - "--drop_last"
+              resources:
+                requests:
+                  cpu: 4500m
+                  memory: 16Gi
+                limits:
+                  cpu: 4500m
+                  memory: 16Gi
+                  nvidia.com/gpu: 2
+          volumes:
+            - name: dshm
+              emptyDir:
+                medium: Memory
+            - name: training-logs
+              persistentVolumeClaim:
+                claimName: ddpm-training-logs
+    Worker:
+      replicas: 1
+      # Need this because if worker starts before master then it will fail
+      # https://github.com/kubeflow/arena/issues/547
+      restartPolicy: OnFailure
+      template:
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: "false"
+        spec:
+          serviceAccount: default-editor
+          containers:
+            - name: pytorch
+              image: dpoulopoulos/ddpm:latest
+              imagePullPolicy: Always
+              volumeMounts:
+                - mountPath: /dev/shm
+                  name: dshm
+                - mountPath: /logs
+                  name: training-logs
+              command: ["python", "/opt/src/ddpm.py"]
+              args: 
+                - "--lr"
+                - "0.0001"
+                # - "--max_lr"
+                # - "0.1"
+                - "--devices"
+                - "2"
+                - "--max_steps"
+                - "3000"
+                - "--num_nodes"
+                - "2"
+                - "--block_out_channels"
+                - "32 64 128 128"
+                - "--batch_size"
+                - "128"
+                - "--num_workers"
+                - "4"
+                - "--strategy"
+                - "ddp"
+                - "--logdir"
+                - "/logs"
+                - "--version"
+                - "version_0"
+                - "--pin_memory"
+                - "--drop_last"
+              resources:
+                requests:
+                  cpu: 4500m
+                  memory: 16Gi
+                limits:
+                  cpu: 4500m
+                  memory: 16Gi
+                  nvidia.com/gpu: 2
+          volumes:
+            - name: dshm
+              emptyDir:
+                medium: Memory
+            - name: training-logs
+              persistentVolumeClaim:
+                claimName: ddpm-training-logs
